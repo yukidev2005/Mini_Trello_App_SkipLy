@@ -9,7 +9,7 @@ import { errorHandler } from '~/utils/error-handler'
 import swaggerUi from 'swagger-ui-express'
 import { swaggerDocument } from '~/configs/swaggerConfig'
 import cors from 'cors'
-import { jwtGraud } from './middlewares/jwt-graud'
+import { boardRoute } from './res/board/board.route'
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -45,6 +45,7 @@ app.get('/', (req, res) => {
 })
 
 app.use('/auth', authRoute)
+app.use('/boards', boardRoute)
 
 app.use(errorHandler)
 
