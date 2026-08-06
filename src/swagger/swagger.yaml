@@ -1,0 +1,96 @@
+openapi: 3.0.4
+info:
+  title: Skipli API
+  version: 1.0.0
+  description: Authentication API for Skipli application
+
+servers:
+  - url: http://localhost:3000
+
+security:
+  - bearerAuth: []
+paths:
+  /:
+    get:
+      tags:
+        - Default
+      summary: 'API Info'
+      responses:
+        '200':
+          description: API is running
+
+  /auth/signup:
+    post:
+      tags:
+        - Auth
+      summary: Creates a new user account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '201':
+
+  /auth/signin:
+    post:
+      tags:
+        - Auth
+      summary: Lognin to user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - verificationCode
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                verificationCode:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  example: '123456'
+    responses:
+      '200':
+
+  /auth/send-code:
+    post:
+      tags:
+        - Auth
+      summary: Send Email verify code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
