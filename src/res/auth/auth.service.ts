@@ -36,10 +36,12 @@ export const handleSignIn = async (credential: ISigninInterface) => {
   }
 
   if (userData.codeExpiresAt) {
-    const now = Math.floor(Date.now() / 1000)
-    // console.log(new Date(userData.codeExpiresAt).getTime(), now)
-    console.log(userData.codeExpiresAt)
-    if (userData.codeExpiresAt._seconds < now) {
+    const now = Date.now()
+    // Firestore có thể trả về Timestamp object hoặc number (milliseconds)
+    const expiresAt =
+      typeof userData.codeExpiresAt === 'number' ? userData.codeExpiresAt : userData.codeExpiresAt._seconds * 1000
+
+    if (expiresAt < now) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const error: any = new Error('Verification code has expired')
       error.statusCode = 401
@@ -69,7 +71,7 @@ export const handleSignUp = async (credential: ISignUpInterface): Promise<{ emai
   }
 
   const otp = generateOtp()
-  const codeExpiresAt = new Date().getTime() + OTP_EXPIRES_MINUTES * 60
+  const codeExpiresAt = new Date().getTime() + OTP_EXPIRES_MINUTES * 60 * 1000
 
   await transporter.sendMail({
     from: `"Skipli Team" <${process.env.GMAIL_USER}>`,

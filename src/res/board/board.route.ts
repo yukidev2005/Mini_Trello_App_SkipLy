@@ -5,6 +5,8 @@ import { createCard, deleteCard, getCardById, getCards, getCardsByUserId, update
 import { respondInvite, sendInvite } from '~/res/invite/invite.controller'
 import { createTask, getTasks } from '~/res/task/task.controller'
 
+import { assignMemberToTask, deleteAssign, getAssignInCard } from '~/res/assign/assign.controller'
+
 export const boardRoute = Router()
 
 boardRoute.post('/', createBoard)
@@ -30,3 +32,7 @@ boardRoute.post('/:boardId/cards/:cardId/tasks', createTask)
 boardRoute.get('/:boardId/cards/:cardId/tasks/:taskId', getTasksbyId)
 boardRoute.put('/:boardId/cards/:cardId/tasks/:taskId', updateTask)
 boardRoute.delete('/:boardId/cards/:cardId/tasks/:taskId', deleteTask)
+
+boardRoute.get('/:boardId/cards/:cardId/tasks/:taskId/assign', getAssignInCard)
+boardRoute.post('/:boardId/cards/:cardId/tasks/:taskId/assign', assignMemberToTask)
+boardRoute.delete('/:boardId/cards/:cardId/tasks/:taskId/assign', deleteAssign)
