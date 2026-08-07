@@ -1,21 +1,20 @@
 import { db } from '~/index'
 import { CreateCardType } from './card.schema'
 
-export const handleCreateCard = async ({ description, name }: CreateCardType) => {
-  // check board is exit
-  const cards = await db.collection('cards').where('name', '==', name).get()
+export const handleCreateCard = async ({ description, name }: CreateCardType, boardId: string) => {
+  const cards = await db.collection('cards').where('name', '==', name).where('boardId', '==', boardId).get()
 
   if (!cards.empty) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('card is realy exit.')
     error.statusCode = 400
+    throw error
   }
-
-  //  create new card
 
   const card = await db.collection('cards').add({
     name,
-    description
+    description,
+    boardId
   })
 
   return {
@@ -25,24 +24,27 @@ export const handleCreateCard = async ({ description, name }: CreateCardType) =>
   }
 }
 
-export const hanldeGetCards = async () => {
-  const cards = await db.collection('cards').get()
+export const hanldeGetCards = async (boardId: string) => {
+  const cards = await db.collection('cards').where('boardId', '==', boardId).get()
   return cards.docs.map((data) => {
     return { ...data.data(), id: data.id }
   })
 }
 
-export const handleGetCardById = async (id: string) => {
-  const card = await db.collection('cards').doc(id).get()
+export const handleGetCardById = async (cardId: string, boardId: string) => {
+  const card = await db.collection('cards').doc(cardId).get()
 
-  return {
-    ...card.data(),
-    id
+  if (!card.data() || card.data()?.boardId !== boardId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error: any = new Error('card not found')
+    error.statusCode = 404
+    throw error
   }
+
+  return { ...card.data(), id: card.id }
 }
 
 export const handleUpdateCard = async (id: string, { description, name }: { description: string; name: string }) => {
-  // check
   const card = await db.collection('cards').doc(id).get()
   if (!card.data()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,18 +65,29 @@ export const handleUpdateCard = async (id: string, { description, name }: { desc
 }
 
 export const handleDeleteCard = async (id: string) => {
-  // check
-  const board = await db.collection('boards').doc(id).get()
-  if (!board.data()) {
+  const card = await db.collection('cards').doc(id).get()
+  if (!card.data()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('board not found')
+    const error: any = new Error('card not found')
     error.statusCode = 404
     throw error
   }
 
-  await db.collection('boards').doc(id).delete()
+  await db.collection('cards').doc(id).delete()
 
   return {
-    message: 'Delete board successfily'
+    message: 'Delete card successfily'
   }
+}
+
+export const handleGetCardsByUserId = async (userId: string) => {
+  const cards = await db.collection('cards').where('memberIds', 'array-contains', userId).get()
+
+  if (cards.empty) {
+    return []
+  }
+
+  return cards.docs.map((card) => {
+    return { ...card.data(), id: card.id }
+  })
 }
