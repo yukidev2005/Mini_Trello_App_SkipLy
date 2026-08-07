@@ -135,7 +135,8 @@ export const updateCard = async (req: Request, res: Response, next: NextFunction
 export const deleteCard = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { cardId } = req.params
-    const data = await handleDeleteCard(cardId)
+    const { userId } = req.body
+    const data = await handleDeleteCard(cardId, userId)
 
     return res.status(204).json({
       message: 'Success',

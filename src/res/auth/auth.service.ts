@@ -5,10 +5,9 @@ import { transporter } from '~/utils/transporter'
 import { otpEmailTemplate } from '~/utils/email-template'
 import { OTP_EXPIRES_MINUTES } from '~/constants'
 import { generateOtp } from '~/utils'
-import { ValidationOTPType } from './auth.schema'
 
-export const handleSignIn = async (credential: ISigninInterface): Promise<{ accessToken: string }> => {
-  const secretKey = process.env.JWT_SECRET
+export const handleSignIn = async (credential: ISigninInterface) => {
+  const secretKey = process.env.JWT_SECRETKEY
 
   if (!secretKey) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,9 +36,10 @@ export const handleSignIn = async (credential: ISigninInterface): Promise<{ acce
   }
 
   if (userData.codeExpiresAt) {
-    const now = new Date().getTime()
-
-    if (userData.codeExpiresAt < now) {
+    const now = Math.floor(Date.now() / 1000)
+    // console.log(new Date(userData.codeExpiresAt).getTime(), now)
+    console.log(userData.codeExpiresAt)
+    if (userData.codeExpiresAt._seconds < now) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const error: any = new Error('Verification code has expired')
       error.statusCode = 401
@@ -47,14 +47,15 @@ export const handleSignIn = async (credential: ISigninInterface): Promise<{ acce
     }
   }
 
-  const token = jwt.sign({ email: credential.email, id: userDoc.id }, secretKey, { expiresIn: '7d' })
+  const accessToken = jwt.sign({ email: credential.email, userId: userDoc.id }, secretKey, { expiresIn: '7d' })
 
   await db.collection('users').doc(userDoc.id).update({
     verificationCode: null,
-    codeExpiresAt: null
+    codeExpiresAt: null,
+    accessToken
   })
 
-  return { accessToken: token }
+  return { accessToken, email: credential.email, userId: userData.id }
 }
 
 export const handleSignUp = async (credential: ISignUpInterface): Promise<{ email: string; id: string }> => {
@@ -102,7 +103,7 @@ export const hanldeSentVerifyCode = async (email: string) => {
   }
 
   const otp = generateOtp()
-  const codeExpiresAt = new Date().getTime() + OTP_EXPIRES_MINUTES * 60
+  const codeExpiresAt = new Date().getTime() + OTP_EXPIRES_MINUTES * 60 * 1000
 
   await transporter.sendMail({
     from: `"Skipli Team" <${process.env.GMAIL_USER}>`,
@@ -122,21 +123,4 @@ export const hanldeSentVerifyCode = async (email: string) => {
   return {
     message: 'Verify code has sent to you email'
   }
-}
-
-export const hanldeValidateOtp = async ({ email, verificationCode }: ValidationOTPType) => {
-  const users = await db.collection('users').where('email', '==', email).get()
-
-  if (users.empty) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('Not have any user link to this email')
-    error.statusCode = 404
-    throw error
-  }
-
-  const userdoc = users.docs[0]
-  const user = userdoc.data()
-  const code = user.verificationCode
-
-  return verificationCode === code
 }

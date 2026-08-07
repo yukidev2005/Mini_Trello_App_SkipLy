@@ -1,7 +1,7 @@
 import { db } from '~/index'
-import { CreateBoardType } from './board.schema'
+import { CreateBoardType, UpdateBoardType } from './board.schema'
 
-export const handleCreateBoard = async ({ description, name }: CreateBoardType) => {
+export const handleCreateBoard = async ({ description, name, userId }: CreateBoardType) => {
   // check board is exit
   const boards = await db.collection('boards').where('name', '==', name).get()
 
@@ -15,12 +15,14 @@ export const handleCreateBoard = async ({ description, name }: CreateBoardType) 
 
   const board = await db.collection('boards').add({
     name,
-    description
+    description,
+    owner_id: userId
   })
 
   return {
     name,
     description,
+    owner_id: userId,
     id: board.id
   }
 }
@@ -31,6 +33,7 @@ export const hanldeGetBoards = async () => {
     return { ...data.data(), id: data.id }
   })
 }
+
 export const getBoardById = async (id: string) => {
   const board = await db.collection('boards').doc(id).get()
 
@@ -40,13 +43,20 @@ export const getBoardById = async (id: string) => {
   }
 }
 
-export const handleUpdateBoard = async (id: string, { description, name }: { description: string; name: string }) => {
+export const handleUpdateBoard = async (id: string, { description, name, userId }: UpdateBoardType) => {
   // check
   const board = await db.collection('boards').doc(id).get()
-  if (!board.data()) {
+
+  if (board) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('board not found')
     error.statusCode = 404
+    throw error
+  }
+  if (board.data().owner_id !== userId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error: any = new Error('You not onw this board')
+    error.statusCode = 401
     throw error
   }
   await db.collection('boards').doc(id).update({
@@ -61,13 +71,19 @@ export const handleUpdateBoard = async (id: string, { description, name }: { des
   }
 }
 
-export const handleDeleteBoard = async (id: string) => {
+export const handleDeleteBoard = async (id: string, userId: string) => {
   // check
   const board = await db.collection('boards').doc(id).get()
   if (!board.data()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('board not found')
     error.statusCode = 404
+    throw error
+  }
+  if (board.data().owner_id !== userId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error: any = new Error('You not onw this board')
+    error.statusCode = 401
     throw error
   }
 

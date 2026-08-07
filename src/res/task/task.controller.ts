@@ -91,7 +91,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
 
 export const updateTask = async (req: Request, res: Response, next: NextFunction) => {
   const { boardId, cardId, taskId } = req.params
-
+  const { userId } = req.body
   try {
     const { success, error } = updateTaskSchema.safeParse({
       boardId,
@@ -109,7 +109,8 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
         boardId,
         ...req.body
       },
-      taskId
+      taskId,
+      userId
     )
 
     return res.status(200).json({
@@ -131,9 +132,10 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
 
 export const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
   const { taskId } = req.params
+  const { userId } = req.body
 
   try {
-    await handleDeleteTask(taskId)
+    await handleDeleteTask(taskId, userId)
 
     return res.status(204).json({
       message: 'Success',

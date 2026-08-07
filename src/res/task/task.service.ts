@@ -57,7 +57,7 @@ export const handleCreateTask = async (data: CreateTaskType) => {
   }
 }
 
-export const handleUpdateTask = async (data: UpdateTaskType, taskId: string) => {
+export const handleUpdateTask = async (data: UpdateTaskType, taskId: string, ownerId: string) => {
   // check  valid
   const task = await db.collection('tasks').doc(taskId).get()
 
@@ -65,6 +65,13 @@ export const handleUpdateTask = async (data: UpdateTaskType, taskId: string) => 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('Task not found')
     error.statusCode = 404
+    throw error
+  }
+
+  if (!task.data().owner_id !== ownerId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error: any = new Error('You do not won task')
+    error.statusCode = 401
     throw error
   }
 
@@ -83,13 +90,20 @@ export const handleUpdateTask = async (data: UpdateTaskType, taskId: string) => 
   }
 }
 
-export const handleDeleteTask = async (taskId: string) => {
+export const handleDeleteTask = async (taskId: string, ownerId: string) => {
   // check valid
   const task = await db.collection('tasks').doc(taskId).get()
   if (!task.data()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('task not found')
     error.statusCode = 404
+    throw error
+  }
+
+  if (!task.data().owner_id !== ownerId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error: any = new Error('You do not won task')
+    error.statusCode = 401
     throw error
   }
 
