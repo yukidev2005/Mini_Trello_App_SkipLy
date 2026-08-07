@@ -2,13 +2,14 @@ openapi: 3.0.4
 info:
   title: Skipli API
   version: 1.0.0
-  description: Authentication API for Skipli application
+  description: API for Skipli application
 
 servers:
   - url: http://localhost:3000
 
 security:
   - bearerAuth: []
+
 paths:
   /:
     get:
@@ -23,7 +24,7 @@ paths:
     post:
       tags:
         - Auth
-      summary: Creates a new user account.
+      summary: Creates a new user account
       requestBody:
         required: true
         content:
@@ -36,15 +37,15 @@ paths:
                 email:
                   type: string
                   format: email
-                  example: user@example.com
       responses:
         '201':
+          description: Created
 
   /auth/signin:
     post:
       tags:
         - Auth
-      summary: Lognin to user account
+      summary: Login to user account
       requestBody:
         required: true
         content:
@@ -58,14 +59,11 @@ paths:
                 email:
                   type: string
                   format: email
-                  example: user@example.com
                 verificationCode:
                   type: string
-                  minLength: 6
-                  maxLength: 6
-                  example: '123456'
-    responses:
-      '200':
+      responses:
+        '200':
+          description: Success
 
   /auth/send-code:
     post:
@@ -84,9 +82,322 @@ paths:
                 email:
                   type: string
                   format: email
-                  example: user@example.com
       responses:
         '200':
+          description: Success
+
+  /auth/validate-otp:
+    post:
+      tags:
+        - Auth
+      summary: Validate OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - verificationCode
+              properties:
+                email:
+                  type: string
+                  format: email
+                verificationCode:
+                  type: string
+      responses:
+        '200':
+          description: Success
+
+  /boards:
+    get:
+      tags:
+        - Board
+      summary: Get all boards
+      responses:
+        '200':
+          description: Success
+    post:
+      tags:
+        - Board
+      summary: Create a board
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Created
+
+  /boards/{id}:
+    get:
+      tags:
+        - Board
+      summary: Get board by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+    put:
+      tags:
+        - Board
+      summary: Update board
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Success
+    delete:
+      tags:
+        - Board
+      summary: Delete board
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+
+  /boards/{boardId}/cards:
+    get:
+      tags:
+        - Card
+      summary: Get all cards in a board
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+    post:
+      tags:
+        - Card
+      summary: Create a card in a board
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Created
+
+  /boards/{boardId}/cards/{cardId}:
+    get:
+      tags:
+        - Card
+      summary: Get card by id
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+    put:
+      tags:
+        - Card
+      summary: Update card
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Success
+    delete:
+      tags:
+        - Card
+      summary: Delete card
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+
+  /boards/{boardId}/cards/user/{userId}:
+    get:
+      tags:
+        - Card
+      summary: Get cards by user id
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+
+  /boards/{boardId}/invite:
+    post:
+      tags:
+        - Invite
+      summary: Invite member to a board
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - board_owner_id
+                - member_id
+              properties:
+                board_owner_id:
+                  type: string
+                member_id:
+                  type: string
+                email_member:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Success
+
+  /boards/{boardId}/cards/{cardId}/invite/accept:
+    post:
+      tags:
+        - Invite
+      summary: Accept or decline a board invitation
+      parameters:
+        - in: path
+          name: boardId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: cardId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - invite_id
+                - card_id
+                - member_id
+                - status
+              properties:
+                invite_id:
+                  type: string
+                card_id:
+                  type: string
+                member_id:
+                  type: string
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Success
 
 components:
   securitySchemes:
