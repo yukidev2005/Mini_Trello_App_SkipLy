@@ -1,12 +1,12 @@
 import { db } from '~/index'
-import { ISigninInterface, ISignUpInterface } from '~/res/auth/auto.interface'
 import jwt from 'jsonwebtoken'
 import { transporter } from '~/utils/transporter'
 import { otpEmailTemplate } from '~/utils/email-template'
 import { OTP_EXPIRES_MINUTES } from '~/constants'
 import { generateOtp } from '~/utils'
+import { SigninType, SignupType } from '~/res/auth/auth.schema'
 
-export const handleSignIn = async (credential: ISigninInterface) => {
+export const handleSignIn = async (credential: SigninType) => {
   const secretKey = process.env.JWT_SECRETKEY
 
   if (!secretKey) {
@@ -57,10 +57,19 @@ export const handleSignIn = async (credential: ISigninInterface) => {
     accessToken
   })
 
-  return { accessToken, email: credential.email, userId: userData.id }
+  const { email, name, githubAccessToken, updatedAt, createdAt } = userData
+  return {
+    userId: userDoc.id,
+    email,
+    name,
+    accessToken,
+    githubAccessToken,
+    updatedAt,
+    createdAt
+  }
 }
 
-export const handleSignUp = async (credential: ISignUpInterface): Promise<{ email: string; id: string }> => {
+export const handleSignUp = async (credential: SignupType) => {
   const users = await db.collection('users').where('email', '==', credential.email).get()
 
   if (!users.empty) {
@@ -84,6 +93,8 @@ export const handleSignUp = async (credential: ISignUpInterface): Promise<{ emai
     email: credential.email,
     verificationCode: otp,
     codeExpiresAt,
+    accessToken: null,
+    githubAccessToken: null,
     createdAt: new Date(),
     updatedAt: new Date()
   })

@@ -1,8 +1,8 @@
 import { NextFunction, Request, Response } from 'express'
 import { emailVerificationSchema, signinSchema, signupSchema } from '~/res/auth/auth.schema'
-import { handleSignIn, handleSignUp, handleSendVerifyCode } from '~/res/auth/auth.service'
+import { handleSignIn, handleSignUp, hanldeSentVerifyCode } from '~/res/auth/auth.service'
 
-export const signinController = async (req: Request, res: Response, next: NextFunction) => {
+export const signinController = async (req: Request, res: Response, next: NextFunction):  => {
   try {
     const credential = req.body
 
@@ -58,7 +58,7 @@ export const sendVerifyCodeController = async (req: Request, res: Response, next
       return next({ message: error.issues, statusCode: 400 })
     }
 
-    const data = await handleSendVerifyCode(email)
+    const data = await hanldeSentVerifyCode(email)
 
     return res.status(200).json({
       message: 'Success',

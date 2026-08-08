@@ -114,6 +114,3 @@ export const handleDeleteBoard = async (id: string, userId: string) => {
   await db.collection('boards').doc(id).delete()
   return null
 }
-  await db.collection('boards').doc(id).delete()
-  return null
-}

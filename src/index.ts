@@ -11,6 +11,7 @@ import { swaggerDocument } from '~/configs/swaggerConfig'
 import cors from 'cors'
 import { boardRoute } from '~/res/board/board.route'
 import { authorization } from '~/middlewares/authorization'
+import { githubRoute } from '~/res/github/github.route'
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -47,6 +48,7 @@ app.get('/', (req, res) => {
 
 app.use('/auth', authorization, authRoute)
 app.use('/boards', authorization, boardRoute)
+app.use('/repositories', authorization, githubRoute)
 
 app.use(errorHandler)
 

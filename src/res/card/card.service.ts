@@ -118,6 +118,3 @@ export const handleDeleteCard = async (id: string, ownerId: string) => {
 
   return null
 }
-  await db.collection('cards').doc(id).delete()
-  return null
-}
