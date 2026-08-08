@@ -12,9 +12,39 @@ import cors from 'cors'
 import { boardRoute } from '~/res/board/board.route'
 import { authorization } from '~/middlewares/authorization'
 import { githubRoute } from '~/res/github/github.route'
+import { Server } from 'socket.io'
+import { createServer } from 'node:http'
 
 const app = express()
 const PORT = process.env.PORT || 3000
+
+const socketServer = createServer()
+
+export const io = new Server(socketServer, {
+  cors: {
+    origin: '*'
+  }
+})
+
+io.on('connection', (socket) => {
+  console.log('⚡ [Socket.IO] User connected:', socket.id)
+
+  socket.on('disconnect', (reason) => {
+    console.log('❌ [Socket.IO] User disconnected:', socket.id, '| Reason:', reason)
+  })
+
+  socket.on('join-board', (boardId: string) => {
+    socket.join(boardId)
+    console.log(`Socket ${socket.id} đã vào phòng: ${boardId}`)
+  })
+
+  // Lắng nghe khi FE thoát khỏi Board đó
+  socket.on('leave-board', (boardId: string) => {
+    socket.leave(boardId)
+  })
+})
+
+socketServer.listen(3636)
 
 app.use(cors({ origin: '*' }))
 app.use(json())

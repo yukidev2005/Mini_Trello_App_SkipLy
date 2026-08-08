@@ -1,21 +1,75 @@
 import { NextFunction, Request, Response } from 'express'
-import { handleGetGithubInfoByRepo } from '~/res/github/github.service'
+import { handelGithubAttach, handleDeleteGithubAttach, handleGetGithubInfoByRepo } from './github.service'
+import { githubAttachSchema } from './github.schema'
 
 export const getGithubInfoByRepo = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { repositoryId } = req.params
+  const { repositoryId } = req.params
+  const { authorization } = req.headers
 
-    const githubToken = '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'
-
-    const { branches, pulls, issues, commits } = await handleGetGithubInfoByRepo(repositoryId, githubToken)
-
-    return res.status(200).json({
-      repositoryId,
-      branches,
-      pulls,
-      issues,
-      commits
+  if (!authorization) {
+    return next({
+      statusCode: 401,
+      message: 'github Token is requred'
     })
+  }
+
+  try {
+    const data = await handleGetGithubInfoByRepo(repositoryId, authorization as string)
+    return res.status(201).json({
+      message: 'Success',
+      data,
+      statusCode: 201,
+      timestamp: new Date().toISOString(),
+      path: req.originalUrl
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    return next({
+      statusCode: error.statusCode,
+      message: error.message
+    })
+  }
+}
+
+export const githubAttach = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { taskId } = req.params
+
+    const { success, error } = githubAttachSchema.safeParse(req.body)
+
+    if (!success) {
+      return next({
+        statusCode: 400,
+        message: error.issues
+      })
+    }
+
+    const data = await handelGithubAttach(taskId, req.body)
+
+    return res.status(201).json({
+      message: 'Success',
+      data,
+      statusCode: 201,
+      timestamp: new Date().toISOString(),
+      path: req.originalUrl
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    return next({
+      statusCode: error.statusCode,
+      message: error.message
+    })
+  }
+}
+
+export const deleteGithubAttach = async (req: Request, res: Response, next: NextFunction) => {
+  const { taskId } = req.params
+
+  try {
+    await handleDeleteGithubAttach(taskId)
+
+    return res.status(201)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     return next({

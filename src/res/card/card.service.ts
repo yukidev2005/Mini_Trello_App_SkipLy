@@ -1,4 +1,4 @@
-import { db } from '~/index'
+import { db, io } from '~/index'
 import { CreateCardType, UpdateCardType } from './card.schema'
 
 export const handleCreateCard = async ({ description, name, onwerId }: CreateCardType, boardId: string) => {
@@ -17,6 +17,8 @@ export const handleCreateCard = async ({ description, name, onwerId }: CreateCar
     boardId,
     owner_id: onwerId
   })
+
+  io.to(boardId).emit('add-card', (await card.get()).data())
 
   return {
     name,

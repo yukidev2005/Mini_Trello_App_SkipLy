@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 import { emailVerificationSchema, signinSchema, signupSchema } from '~/res/auth/auth.schema'
 import { handleSignIn, handleSignUp, hanldeSentVerifyCode } from '~/res/auth/auth.service'
 
-export const signinController = async (req: Request, res: Response, next: NextFunction):  => {
+export const signinController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const credential = req.body
 

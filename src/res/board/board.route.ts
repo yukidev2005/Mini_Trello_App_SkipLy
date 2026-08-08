@@ -6,6 +6,7 @@ import { respondInvite, sendInvite } from '~/res/invite/invite.controller'
 import { createTask, getTasks } from '~/res/task/task.controller'
 
 import { assignMemberToTask, deleteAssign, getAssignInCard } from '~/res/assign/assign.controller'
+import { deleteGithubAttach, githubAttach } from '../github/github.controller'
 
 export const boardRoute = Router()
 
@@ -36,3 +37,5 @@ boardRoute.delete('/:boardId/cards/:cardId/tasks/:taskId', deleteTask)
 boardRoute.get('/:boardId/cards/:cardId/tasks/:taskId/assign', getAssignInCard)
 boardRoute.post('/:boardId/cards/:cardId/tasks/:taskId/assign', assignMemberToTask)
 boardRoute.delete('/:boardId/cards/:cardId/tasks/:taskId/assign', deleteAssign)
+boardRoute.post('/:boardId/cards/:cardId/tasks/:taskId/github-attach', githubAttach)
+boardRoute.delete('/:boardId/cards/:cardId/tasks/:taskId/github-attach', deleteGithubAttach)
