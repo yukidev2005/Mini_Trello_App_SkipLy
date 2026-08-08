@@ -110,3 +110,6 @@ export const handleDeleteTask = async (taskId: string, ownerId: string) => {
   await db.collection('tasks').doc(taskId).delete()
   return null
 }
+  await db.collection('tasks').doc(taskId).delete()
+  return null
+}

@@ -3,12 +3,6 @@ import { createBoardSchema, updateBoar5dSchema } from './board.schema'
 import { getBoardById, handleCreateBoard, handleDeleteBoard, handleUpdateBoard, hanldeGetBoards } from './board.service'
 
 export const createBoard = async (req: Request, res: Response, next: NextFunction) => {
-  const secretKey = process.env.JWT_SECRETKEY
-
-  if (!secretKey) {
-    return next({ message: 'invalid secretkey', statusCode: 500 })
-  }
-
   try {
     const { success, error } = createBoardSchema.safeParse(req.body)
 

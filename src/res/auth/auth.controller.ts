@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { emailVerificationSchema, signinSchema, signupSchema } from '~/res/auth/auth.schema'
-import { handleSignIn, handleSignUp, hanldeSentVerifyCode } from '~/res/auth/auth.service'
+import { handleSignIn, handleSignUp, handleSendVerifyCode } from '~/res/auth/auth.service'
 
 export const signinController = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -20,12 +20,8 @@ export const signinController = async (req: Request, res: Response, next: NextFu
       timestamp: new Date().toISOString(),
       path: req.originalUrl
     })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+  } catch (error: unknown) {
+    return next(error)
   }
 }
 
@@ -47,16 +43,12 @@ export const signupController = async (req: Request, res: Response, next: NextFu
       timestamp: new Date().toISOString(),
       path: req.originalUrl
     })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+  } catch (error: unknown) {
+    return next(error)
   }
 }
 
-export const sentVerifyCodeController = async (req: Request, res: Response, next: NextFunction) => {
+export const sendVerifyCodeController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email } = req.body
 
@@ -66,7 +58,7 @@ export const sentVerifyCodeController = async (req: Request, res: Response, next
       return next({ message: error.issues, statusCode: 400 })
     }
 
-    const data = await hanldeSentVerifyCode(email)
+    const data = await handleSendVerifyCode(email)
 
     return res.status(200).json({
       message: 'Success',
@@ -75,12 +67,7 @@ export const sentVerifyCodeController = async (req: Request, res: Response, next
       timestamp: new Date().toISOString(),
       path: req.originalUrl
     })
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+  } catch (error: unknown) {
+    return next(error)
   }
 }

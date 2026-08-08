@@ -102,9 +102,22 @@ export const handleDeleteCard = async (id: string, ownerId: string) => {
     throw error
   }
 
+  const tasks = await db.collection('tasks').where('card_id', '==', id).get()
+
+  if (tasks.empty) {
+    await db.collection('cards').doc(id).delete()
+    return null
+  }
+
+  for (let i = 0; i < tasks.size; i++) {
+    const currentTask = tasks[i]
+    await db.collection('tasks').doc(currentTask.data().id).delete()
+  }
+
   await db.collection('cards').doc(id).delete()
 
-  return {
-    message: 'Delete card successfily'
-  }
+  return null
+}
+  await db.collection('cards').doc(id).delete()
+  return null
 }

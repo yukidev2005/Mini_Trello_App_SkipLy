@@ -16,14 +16,16 @@ export const handleCreateBoard = async ({ description, name, userId }: CreateBoa
   const board = await db.collection('boards').add({
     name,
     description,
-    owner_id: userId
+    owner_id: userId,
+    member_ids: []
   })
 
   return {
     name,
     description,
     owner_id: userId,
-    id: board.id
+    id: board.id,
+    member_ids: []
   }
 }
 
@@ -87,9 +89,31 @@ export const handleDeleteBoard = async (id: string, userId: string) => {
     throw error
   }
 
-  await db.collection('boards').doc(id).delete()
+  const cardsList = await db.collection('cards').where('board_id', '==', id).get()
 
-  return {
-    message: 'Delete board successfily'
+  if (cardsList.empty) {
+    await db.collection('boards').doc(id).delete()
+    return null
   }
+
+  for (let i = 0; i < cardsList.size; i++) {
+    const currentCard = cardsList[i]
+
+    // check task link to this card
+    const taskList = await db.collection('tasks').where('card_id', '==', currentCard.data().id).get()
+
+    if (!taskList.empty) {
+      for (let j = 0; j < taskList.size; j++) {
+        const currentTask = taskList[i]
+        await db.collection('tasks').doc(currentTask.data().id).delete()
+      }
+    }
+    await db.collection('cards').doc(currentCard.data().id).delete()
+  }
+
+  await db.collection('boards').doc(id).delete()
+  return null
+}
+  await db.collection('boards').doc(id).delete()
+  return null
 }
