@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { sendInviteSchema, respondInviteSchema } from './invite.schema'
-import { handleSendInvite, handleRespondInvite } from './invite.service'
+import { handleSendInvite, handleRespondInvite, handleGetPendingInvitations } from './invite.service'
 
 export const sendInvite = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -26,9 +26,26 @@ export const sendInvite = async (req: Request, res: Response, next: NextFunction
   }
 }
 
+export const getPendingInvitationsController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId } = req.params
+    const data = await handleGetPendingInvitations(userId)
+
+    return res.status(200).json({
+      message: 'Success',
+      data,
+      statusCode: 200,
+      timestamp: new Date().toISOString(),
+      path: req.originalUrl
+    })
+  } catch (error: unknown) {
+    return next(error)
+  }
+}
+
 export const respondInvite = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { boardId, cardId } = req.params
+    const { boardId, cardId = 'default' } = req.params
 
     const { success, error } = respondInviteSchema.safeParse(req.body)
 
