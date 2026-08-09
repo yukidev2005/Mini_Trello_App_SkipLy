@@ -1,5 +1,6 @@
 import { db, io } from '~/index'
 import { CreateCardType, UpdateCardType } from './card.schema'
+import { sendNewCardToRoom } from '~/socket/card-socket'
 
 export const handleCreateCard = async ({ description, name, onwerId }: CreateCardType, boardId: string) => {
   const cards = await db.collection('cards').where('name', '==', name).where('boardId', '==', boardId).get()
@@ -18,7 +19,7 @@ export const handleCreateCard = async ({ description, name, onwerId }: CreateCar
     owner_id: onwerId
   })
 
-  io.to(boardId).emit('add-card', (await card.get()).data())
+  sendNewCardToRoom(card.id, (await card.get()).data())
 
   return {
     name,

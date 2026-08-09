@@ -38,7 +38,6 @@ io.on('connection', (socket) => {
     console.log(`Socket ${socket.id} đã vào phòng: ${boardId}`)
   })
 
-  // Lắng nghe khi FE thoát khỏi Board đó
   socket.on('leave-board', (boardId: string) => {
     socket.leave(boardId)
   })

@@ -1,5 +1,6 @@
 import { db } from '~/index'
 import { CreateBoardType, UpdateBoardType } from './board.schema'
+import { sendNewCardToRoom } from '~/socket/card-socket'
 
 export const handleCreateBoard = async ({ description, name, userId }: CreateBoardType) => {
   // check board is exit
@@ -19,6 +20,8 @@ export const handleCreateBoard = async ({ description, name, userId }: CreateBoa
     owner_id: userId,
     member_ids: []
   })
+
+  sendNewCardToRoom(board.id, (await board.get()).data())
 
   return {
     name,
