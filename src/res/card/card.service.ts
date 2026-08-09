@@ -1,6 +1,6 @@
-import { db, io } from '~/index'
+import { db } from '~/index'
 import { CreateCardType, UpdateCardType } from './card.schema'
-import { sendNewCardToRoom } from '~/socket/card-socket'
+import { sendNewCardToRoom, sendUpdateCardToRoom, sendDeleteCardToRoom } from '~/socket/card-socket'
 
 export const handleCreateCard = async ({ description, name, onwerId }: CreateCardType, boardId: string) => {
   const cards = await db.collection('cards').where('name', '==', name).where('boardId', '==', boardId).get()
@@ -19,14 +19,17 @@ export const handleCreateCard = async ({ description, name, onwerId }: CreateCar
     owner_id: onwerId
   })
 
-  sendNewCardToRoom(card.id, (await card.get()).data())
-
-  return {
+  const cardData = {
     name,
     description,
+    boardId,
     owner_id: onwerId,
     id: card.id
   }
+
+  sendNewCardToRoom(boardId, cardData)
+
+  return cardData
 }
 
 export const hanldeGetCards = async (boardId: string) => {
@@ -91,8 +94,9 @@ export const handleGetMembersByCardId = async (cardId: string, boardId?: string)
 }
 
 export const handleUpdateCard = async (id: string, { description, name, onwerId }: UpdateCardType) => {
-  const card = await db.collection('cards').doc(id).get()
-  if (!card.data()) {
+  const cardDoc = await db.collection('cards').doc(id).get()
+  const cardData = cardDoc.data()
+  if (!cardData) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('card not found')
     error.statusCode = 404
@@ -100,7 +104,7 @@ export const handleUpdateCard = async (id: string, { description, name, onwerId 
   }
 
   // check owner
-  if (card.data()?.owner_id !== onwerId) {
+  if (cardData.owner_id !== onwerId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('You not onw this card')
     error.statusCode = 401
@@ -111,23 +115,31 @@ export const handleUpdateCard = async (id: string, { description, name, onwerId 
     description
   })
 
-  return {
+  const updatedData = {
     name,
     description,
-    id: card.id
+    id: cardDoc.id,
+    boardId: cardData.boardId
   }
+
+  if (cardData.boardId) {
+    sendUpdateCardToRoom(cardData.boardId, updatedData)
+  }
+
+  return updatedData
 }
 
 export const handleDeleteCard = async (id: string, ownerId: string) => {
-  const card = await db.collection('cards').doc(id).get()
-  if (!card.data()) {
+  const cardDoc = await db.collection('cards').doc(id).get()
+  const cardData = cardDoc.data()
+  if (!cardData) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('card not found')
     error.statusCode = 404
     throw error
   }
 
-  if (card.data()?.owner_id !== ownerId) {
+  if (cardData.owner_id !== ownerId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('You not onw this card')
     error.statusCode = 401
@@ -136,17 +148,18 @@ export const handleDeleteCard = async (id: string, ownerId: string) => {
 
   const tasks = await db.collection('tasks').where('card_id', '==', id).get()
 
-  if (tasks.empty) {
-    await db.collection('cards').doc(id).delete()
-    return null
-  }
-
-  for (let i = 0; i < tasks.docs.length; i++) {
-    const currentTask = tasks.docs[i]
-    await db.collection('tasks').doc(currentTask.id).delete()
+  if (!tasks.empty) {
+    for (let i = 0; i < tasks.docs.length; i++) {
+      const currentTask = tasks.docs[i]
+      await db.collection('tasks').doc(currentTask.id).delete()
+    }
   }
 
   await db.collection('cards').doc(id).delete()
+
+  if (cardData.boardId) {
+    sendDeleteCardToRoom(cardData.boardId, id)
+  }
 
   return null
 }
