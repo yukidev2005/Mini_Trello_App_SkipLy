@@ -10,13 +10,15 @@ import {
   getMembersByCardId,
   updateCard
 } from '~/res/card/card.controller'
-import { respondInvite } from '~/res/invite/invite.controller'
+import { getPendingInvitationsController, respondInvite } from '~/res/invite/invite.controller'
 import { createTask, getTasks } from '~/res/task/task.controller'
 
 import { assignMemberToTask, deleteAssign, getAssignInCard } from '~/res/assign/assign.controller'
 import { deleteGithubAttach, githubAttach } from '../github/github.controller'
 
 export const boardRoute = Router()
+
+boardRoute.get('/invitations/user/:userId', getPendingInvitationsController)
 
 boardRoute.post('/', createBoard)
 boardRoute.get('/', getBoards)
@@ -36,6 +38,7 @@ boardRoute.delete('/:boardId/cards/:cardId', deleteCard)
 
 // Invite routes
 boardRoute.post('/:boardId/invite', sendInvite)
+boardRoute.post('/:boardId/invite/accept', respondInvite)
 boardRoute.post('/:boardId/cards/:cardId/invite/accept', respondInvite)
 
 boardRoute.get('/:boardId/cards/:cardId/tasks', getTasks)

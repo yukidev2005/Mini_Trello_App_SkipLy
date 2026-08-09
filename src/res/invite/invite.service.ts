@@ -3,6 +3,7 @@ import { transporter } from '~/utils/transporter'
 import { SendInviteType, RespondInviteType } from './invite.schema'
 import { invitationEmailTemplate } from '~/utils/email-template'
 import { createHttpError } from '~/utils/http-error'
+import { sendUpdateBoardToRoom } from '~/socket/board-socket'
 
 export const handleSendInvite = async (
   boardId: string,
@@ -35,7 +36,7 @@ export const handleSendInvite = async (
     throw createHttpError('Bạn không thể tự mời chính mình', 400)
   }
 
-  const currentMembers: string[] = boardData.member_ids ?? boardData.memberIds ?? []
+  const currentMembers: string[] = [...(boardData.member_ids ?? []), ...(boardData.memberIds ?? [])]
   if (currentMembers.includes(member_id)) {
     throw createHttpError('Người dùng này đã là thành viên của bảng', 400)
   }
@@ -79,6 +80,46 @@ export const handleSendInvite = async (
   return { success: true, member_id, email: targetEmail }
 }
 
+export const handleGetPendingInvitations = async (userId: string) => {
+  const invitesSnapshot = await db
+    .collection('invitations')
+    .where('member_id', '==', userId)
+    .where('status', '==', 'pending')
+    .get()
+
+  if (invitesSnapshot.empty) {
+    return []
+  }
+
+  const results = await Promise.all(
+    invitesSnapshot.docs.map(async (doc) => {
+      const data = doc.data()
+      let boardName = 'Workspace Board'
+
+      if (data.board_id) {
+        const boardDoc = await db.collection('boards').doc(data.board_id).get()
+        if (boardDoc.exists && boardDoc.data()?.name) {
+          boardName = boardDoc.data()?.name
+        }
+      }
+
+      return {
+        id: doc.id,
+        invite_id: doc.id,
+        board_id: data.board_id,
+        board_name: boardName,
+        board_owner_id: data.board_owner_id,
+        member_id: data.member_id,
+        email_member: data.email_member,
+        status: data.status,
+        created_at: data.created_at
+      }
+    })
+  )
+
+  return results
+}
+
 export const handleRespondInvite = async (
   boardId: string,
   cardId: string,
@@ -93,11 +134,9 @@ export const handleRespondInvite = async (
     throw createHttpError('Invitation not found', 404)
   }
 
-  if (inviteData.board_id !== boardId) {
-    throw createHttpError('Invitation does not belong to this board', 403)
-  }
+  const targetBoardId = inviteData.board_id || boardId
 
-  if (inviteData.member_id !== member_id) {
+  if (inviteData.member_id && inviteData.member_id !== member_id) {
     throw createHttpError('Member does not match the invitation', 403)
   }
 
@@ -111,17 +150,40 @@ export const handleRespondInvite = async (
   })
 
   if (status === 'accepted') {
-    const cardDoc = await db.collection('cards').doc(cardId).get()
-    if (cardDoc.data()) {
-      const currentMembers: string[] = cardDoc.data()?.memberIds ?? []
+    // 1. Add member_id to board.member_ids AND board.memberIds
+    const boardDoc = await db.collection('boards').doc(targetBoardId).get()
+    if (boardDoc.exists) {
+      const boardData = boardDoc.data()!
+      const currentBoardMembers = boardData.ids
 
-      if (!currentMembers.includes(member_id)) {
-        await db
-          .collection('cards')
-          .doc(cardId)
-          .update({
-            memberIds: [...currentMembers, member_id]
-          })
+      await db
+        .collection('boards')
+        .doc(targetBoardId)
+        .update({
+          member_ids: [...currentBoardMembers, payload.member_id]
+        })
+
+      sendUpdateBoardToRoom(targetBoardId, {
+        ...boardData,
+        id: targetBoardId,
+        member_ids: currentBoardMembers,
+        memberIds: currentBoardMembers
+      })
+    }
+
+    // 2. If cardId is valid and not 'default', add to card.memberIds
+    if (cardId && cardId !== 'default' && cardId !== 'board') {
+      const cardDoc = await db.collection('cards').doc(cardId).get()
+      if (cardDoc.exists && cardDoc.data()) {
+        const currentMembers: string[] = cardDoc.data()?.memberIds ?? []
+        if (!currentMembers.includes(member_id)) {
+          await db
+            .collection('cards')
+            .doc(cardId)
+            .update({
+              memberIds: [...currentMembers, member_id]
+            })
+        }
       }
     }
   }
