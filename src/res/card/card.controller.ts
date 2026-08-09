@@ -4,6 +4,7 @@ import {
   handleDeleteCard,
   handleGetCardById,
   handleGetCardsByUserId,
+  handleGetMembersByCardId,
   handleUpdateCard,
   hanldeGetCards
 } from './card.service'
@@ -98,6 +99,28 @@ export const getCardsByUserId = async (req: Request, res: Response, next: NextFu
   } catch (error: any) {
     return next({
       statusCode: error.statusCode,
+      message: error.message
+    })
+  }
+}
+
+export const getMembersByCardId = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { cardId, boardId } = req.params
+
+    const data = await handleGetMembersByCardId(cardId, boardId)
+
+    return res.status(200).json({
+      message: 'Success',
+      data,
+      statusCode: 200,
+      timestamp: new Date().toISOString(),
+      path: req.originalUrl
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    return next({
+      statusCode: error.statusCode || 500,
       message: error.message
     })
   }

@@ -1,6 +1,13 @@
 import { NextFunction, Request, Response } from 'express'
 import { createBoardSchema, updateBoar5dSchema } from './board.schema'
-import { getBoardById, handleCreateBoard, handleDeleteBoard, handleUpdateBoard, hanldeGetBoards } from './board.service'
+import {
+  getBoardById,
+  handleCreateBoard,
+  handleDeleteBoard,
+  handleGetMembersByBoardId,
+  handleUpdateBoard,
+  hanldeGetBoards
+} from './board.service'
 
 export const createBoard = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -51,7 +58,7 @@ export const getBoards = async (req: Request, res: Response, next: NextFunction)
 
 export const getBoardbyId = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params
+    const id = req.params.id || req.params.boardId
     const data = await getBoardById(id)
 
     return res.status(200).json({

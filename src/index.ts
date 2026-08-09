@@ -18,9 +18,9 @@ import { createServer } from 'node:http'
 const app = express()
 const PORT = process.env.PORT || 3000
 
-const socketServer = createServer()
+const httpServer = createServer(app)
 
-export const io = new Server(socketServer, {
+export const io = new Server(httpServer, {
   cors: {
     origin: '*'
   }
@@ -40,10 +40,9 @@ io.on('connection', (socket) => {
 
   socket.on('leave-board', (boardId: string) => {
     socket.leave(boardId)
+    console.log(`Socket ${socket.id} đã rời phòng: ${boardId}`)
   })
 })
-
-socketServer.listen(3636)
 
 app.use(cors({ origin: '*' }))
 app.use(json())
@@ -81,6 +80,6 @@ app.use('/repositories', authorization, githubRoute)
 
 app.use(errorHandler)
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`🚀 Server listening on http://localhost:${PORT}`)
 })

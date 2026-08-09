@@ -1,5 +1,6 @@
 import { db } from '~/index'
 import { CreateTaskType, UpdateTaskType } from '~/res/task/task.schema'
+import { createHttpError } from '~/utils/http-error'
 
 export const handleGetTasks = async (boardId: string, cardId: string) => {
   const tasks = await db.collection('tasks').where('board_id', '==', boardId).where('card_id', '==', cardId).get()
@@ -60,22 +61,15 @@ export const handleCreateTask = async (data: CreateTaskType) => {
 export const handleUpdateTask = async (data: UpdateTaskType, taskId: string, ownerId: string) => {
   // check  valid
   const task = await db.collection('tasks').doc(taskId).get()
+  const taskData = task.data()
 
-  if (!task.data()) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('Task not found')
-    error.statusCode = 404
-    throw error
+  if (!taskData) {
+    throw createHttpError('Task not found', 404)
   }
 
-  if (!task.data().owner_id !== ownerId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('You do not won task')
-    error.statusCode = 401
-    throw error
+  if (taskData.owner_id !== ownerId) {
+    throw createHttpError('You do not own this task', 403)
   }
-
-  // create
 
   await db.collection('tasks').doc(taskId).update({
     board_id: data.boardId,
@@ -93,18 +87,14 @@ export const handleUpdateTask = async (data: UpdateTaskType, taskId: string, own
 export const handleDeleteTask = async (taskId: string, ownerId: string) => {
   // check valid
   const task = await db.collection('tasks').doc(taskId).get()
-  if (!task.data()) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('task not found')
-    error.statusCode = 404
-    throw error
+  const taskData = task.data()
+
+  if (!taskData) {
+    throw createHttpError('Task not found', 404)
   }
 
-  if (!task.data().owner_id !== ownerId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('You do not won task')
-    error.statusCode = 401
-    throw error
+  if (taskData.owner_id !== ownerId) {
+    throw createHttpError('You do not own this task', 403)
   }
 
   await db.collection('tasks').doc(taskId).delete()

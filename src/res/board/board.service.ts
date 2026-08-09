@@ -1,6 +1,7 @@
 import { db } from '~/index'
 import { CreateBoardType, UpdateBoardType } from './board.schema'
 import { sendNewCardToRoom } from '~/socket/card-socket'
+import { createHttpError } from '~/utils/http-error'
 
 export const handleCreateBoard = async ({ description, name, userId }: CreateBoardType) => {
   // check board is exit
@@ -49,21 +50,17 @@ export const getBoardById = async (id: string) => {
 }
 
 export const handleUpdateBoard = async (id: string, { description, name, userId }: UpdateBoardType) => {
-  // check
-  const board = await db.collection('boards').doc(id).get()
+  const boardDoc = await db.collection('boards').doc(id).get()
+  const boardData = boardDoc.data()
 
-  if (board) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('board not found')
-    error.statusCode = 404
-    throw error
+  if (!boardData) {
+    throw createHttpError('Board not found', 404)
   }
-  if (board.data().owner_id !== userId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('You not onw this board')
-    error.statusCode = 401
-    throw error
+
+  if (boardData.owner_id !== userId && boardData.ownerId !== userId) {
+    throw createHttpError('You do not own this board', 403)
   }
+
   await db.collection('boards').doc(id).update({
     name,
     description
@@ -72,24 +69,20 @@ export const handleUpdateBoard = async (id: string, { description, name, userId 
   return {
     name,
     description,
-    id: board.id
+    id: boardDoc.id
   }
 }
 
 export const handleDeleteBoard = async (id: string, userId: string) => {
-  // check
-  const board = await db.collection('boards').doc(id).get()
-  if (!board.data()) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('board not found')
-    error.statusCode = 404
-    throw error
+  const boardDoc = await db.collection('boards').doc(id).get()
+  const boardData = boardDoc.data()
+
+  if (!boardData) {
+    throw createHttpError('Board not found', 404)
   }
-  if (board.data().owner_id !== userId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const error: any = new Error('You not onw this board')
-    error.statusCode = 401
-    throw error
+
+  if (boardData.owner_id !== userId && boardData.ownerId !== userId) {
+    throw createHttpError('You do not own this board', 403)
   }
 
   const cardsList = await db.collection('cards').where('board_id', '==', id).get()
@@ -99,19 +92,19 @@ export const handleDeleteBoard = async (id: string, userId: string) => {
     return null
   }
 
-  for (let i = 0; i < cardsList.size; i++) {
-    const currentCard = cardsList[i]
+  for (let i = 0; i < cardsList.docs.length; i++) {
+    const currentCard = cardsList.docs[i]
 
     // check task link to this card
-    const taskList = await db.collection('tasks').where('card_id', '==', currentCard.data().id).get()
+    const taskList = await db.collection('tasks').where('card_id', '==', currentCard.id).get()
 
     if (!taskList.empty) {
-      for (let j = 0; j < taskList.size; j++) {
-        const currentTask = taskList[i]
-        await db.collection('tasks').doc(currentTask.data().id).delete()
+      for (let j = 0; j < taskList.docs.length; j++) {
+        const currentTask = taskList.docs[j]
+        await db.collection('tasks').doc(currentTask.id).delete()
       }
     }
-    await db.collection('cards').doc(currentCard.data().id).delete()
+    await db.collection('cards').doc(currentCard.id).delete()
   }
 
   await db.collection('boards').doc(id).delete()

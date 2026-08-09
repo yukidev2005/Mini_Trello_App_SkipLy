@@ -1,7 +1,15 @@
 import { deleteTask, getTaskById, updateTask } from './../task/task.controller'
 import { Router } from 'express'
-import { createBoard, deleteBoard, getBoardbyId, getBoards, updateBoard } from './board.controller'
-import { createCard, deleteCard, getCardById, getCards, getCardsByUserId, updateCard } from '~/res/card/card.controller'
+import { createBoard, deleteBoard, getBoardbyId, getBoards, getMembersByBoardId, updateBoard } from './board.controller'
+import {
+  createCard,
+  deleteCard,
+  getCardById,
+  getCards,
+  getCardsByUserId,
+  getMembersByCardId,
+  updateCard
+} from '~/res/card/card.controller'
 import { respondInvite, sendInvite } from '~/res/invite/invite.controller'
 import { createTask, getTasks } from '~/res/task/task.controller'
 
@@ -19,6 +27,7 @@ boardRoute.delete('/:id', deleteBoard)
 boardRoute.get('/:boardId/cards', getCards)
 boardRoute.get('/:boardId/cards/:cardId', getCardById)
 boardRoute.get('/:boardId/cards/user/:userId', getCardsByUserId)
+boardRoute.get('/:boardId/cards/:cardId/members', getMembersByCardId)
 
 boardRoute.post('/:boardId/cards', createCard)
 boardRoute.put('/:boardId/cards/:cardId', updateCard)

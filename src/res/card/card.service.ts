@@ -61,6 +61,35 @@ export const handleGetCardsByUserId = async (userId: string) => {
   })
 }
 
+export const handleGetMembersByCardId = async (cardId: string, boardId?: string) => {
+  const card = await db.collection('cards').doc(cardId).get()
+  const cardData = card.data()
+
+  if (!cardData || (boardId && cardData.boardId !== boardId)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error: any = new Error('card not found')
+    error.statusCode = 404
+    throw error
+  }
+
+  const memberIds: string[] = cardData.memberIds ?? cardData.member_ids ?? []
+
+  if (memberIds.length === 0) {
+    return []
+  }
+
+  const userDocs = await Promise.all(memberIds.map((id) => db.collection('users').doc(id).get()))
+
+  return userDocs
+    .filter((doc) => doc.exists)
+    .map((doc) => {
+      const data = doc.data()!
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { verificationCode, codeExpiresAt, ...safeUser } = data
+      return { id: doc.id, ...safeUser }
+    })
+}
+
 export const handleUpdateCard = async (id: string, { description, name, onwerId }: UpdateCardType) => {
   const card = await db.collection('cards').doc(id).get()
   if (!card.data()) {
@@ -71,7 +100,7 @@ export const handleUpdateCard = async (id: string, { description, name, onwerId 
   }
 
   // check owner
-  if (!card.data().owner_id !== onwerId) {
+  if (card.data()?.owner_id !== onwerId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('You not onw this card')
     error.statusCode = 401
@@ -98,7 +127,7 @@ export const handleDeleteCard = async (id: string, ownerId: string) => {
     throw error
   }
 
-  if (!card.data().owner_id !== ownerId) {
+  if (card.data()?.owner_id !== ownerId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('You not onw this card')
     error.statusCode = 401
@@ -112,9 +141,9 @@ export const handleDeleteCard = async (id: string, ownerId: string) => {
     return null
   }
 
-  for (let i = 0; i < tasks.size; i++) {
-    const currentTask = tasks[i]
-    await db.collection('tasks').doc(currentTask.data().id).delete()
+  for (let i = 0; i < tasks.docs.length; i++) {
+    const currentTask = tasks.docs[i]
+    await db.collection('tasks').doc(currentTask.id).delete()
   }
 
   await db.collection('cards').doc(id).delete()
