@@ -1,7 +1,8 @@
-import { db } from '~/index'
-import { CreateCardType } from './card.schema'
+import { db, io } from '~/index'
+import { CreateCardType, UpdateCardType } from './card.schema'
+import { sendNewCardToRoom } from '~/socket/card-socket'
 
-export const handleCreateCard = async ({ description, name }: CreateCardType, boardId: string) => {
+export const handleCreateCard = async ({ description, name, onwerId }: CreateCardType, boardId: string) => {
   const cards = await db.collection('cards').where('name', '==', name).where('boardId', '==', boardId).get()
 
   if (!cards.empty) {
@@ -14,12 +15,16 @@ export const handleCreateCard = async ({ description, name }: CreateCardType, bo
   const card = await db.collection('cards').add({
     name,
     description,
-    boardId
+    boardId,
+    owner_id: onwerId
   })
+
+  sendNewCardToRoom(card.id, (await card.get()).data())
 
   return {
     name,
     description,
+    owner_id: onwerId,
     id: card.id
   }
 }
@@ -44,12 +49,61 @@ export const handleGetCardById = async (cardId: string, boardId: string) => {
   return { ...card.data(), id: card.id }
 }
 
-export const handleUpdateCard = async (id: string, { description, name }: { description: string; name: string }) => {
+export const handleGetCardsByUserId = async (userId: string) => {
+  const cards = await db.collection('cards').where('memberIds', 'array-contains', userId).get()
+
+  if (cards.empty) {
+    return []
+  }
+
+  return cards.docs.map((card) => {
+    return { ...card.data(), id: card.id }
+  })
+}
+
+export const handleGetMembersByCardId = async (cardId: string, boardId?: string) => {
+  const card = await db.collection('cards').doc(cardId).get()
+  const cardData = card.data()
+
+  if (!cardData || (boardId && cardData.boardId !== boardId)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error: any = new Error('card not found')
+    error.statusCode = 404
+    throw error
+  }
+
+  const memberIds: string[] = cardData.memberIds ?? cardData.member_ids ?? []
+
+  if (memberIds.length === 0) {
+    return []
+  }
+
+  const userDocs = await Promise.all(memberIds.map((id) => db.collection('users').doc(id).get()))
+
+  return userDocs
+    .filter((doc) => doc.exists)
+    .map((doc) => {
+      const data = doc.data()!
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { verificationCode, codeExpiresAt, ...safeUser } = data
+      return { id: doc.id, ...safeUser }
+    })
+}
+
+export const handleUpdateCard = async (id: string, { description, name, onwerId }: UpdateCardType) => {
   const card = await db.collection('cards').doc(id).get()
   if (!card.data()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const error: any = new Error('card not found')
     error.statusCode = 404
+    throw error
+  }
+
+  // check owner
+  if (card.data()?.owner_id !== onwerId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error: any = new Error('You not onw this card')
+    error.statusCode = 401
     throw error
   }
   await db.collection('cards').doc(id).update({
@@ -64,7 +118,7 @@ export const handleUpdateCard = async (id: string, { description, name }: { desc
   }
 }
 
-export const handleDeleteCard = async (id: string) => {
+export const handleDeleteCard = async (id: string, ownerId: string) => {
   const card = await db.collection('cards').doc(id).get()
   if (!card.data()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,21 +127,26 @@ export const handleDeleteCard = async (id: string) => {
     throw error
   }
 
+  if (card.data()?.owner_id !== ownerId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const error: any = new Error('You not onw this card')
+    error.statusCode = 401
+    throw error
+  }
+
+  const tasks = await db.collection('tasks').where('card_id', '==', id).get()
+
+  if (tasks.empty) {
+    await db.collection('cards').doc(id).delete()
+    return null
+  }
+
+  for (let i = 0; i < tasks.docs.length; i++) {
+    const currentTask = tasks.docs[i]
+    await db.collection('tasks').doc(currentTask.id).delete()
+  }
+
   await db.collection('cards').doc(id).delete()
 
-  return {
-    message: 'Delete card successfily'
-  }
-}
-
-export const handleGetCardsByUserId = async (userId: string) => {
-  const cards = await db.collection('cards').where('memberIds', 'array-contains', userId).get()
-
-  if (cards.empty) {
-    return []
-  }
-
-  return cards.docs.map((card) => {
-    return { ...card.data(), id: card.id }
-  })
+  return null
 }

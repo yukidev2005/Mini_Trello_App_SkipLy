@@ -21,13 +21,8 @@ export const sendInvite = async (req: Request, res: Response, next: NextFunction
       timestamp: new Date().toISOString(),
       path: req.originalUrl
     })
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+  } catch (error: unknown) {
+    return next(error)
   }
 }
 
@@ -50,12 +45,7 @@ export const respondInvite = async (req: Request, res: Response, next: NextFunct
       timestamp: new Date().toISOString(),
       path: req.originalUrl
     })
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+  } catch (error: unknown) {
+    return next(error)
   }
 }

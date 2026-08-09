@@ -11,9 +11,38 @@ import { swaggerDocument } from '~/configs/swaggerConfig'
 import cors from 'cors'
 import { boardRoute } from '~/res/board/board.route'
 import { authorization } from '~/middlewares/authorization'
+import { githubRoute } from '~/res/github/github.route'
+import { Server } from 'socket.io'
+import { createServer } from 'node:http'
 
 const app = express()
 const PORT = process.env.PORT || 3000
+
+const httpServer = createServer(app)
+
+export const io = new Server(httpServer, {
+  cors: {
+    origin: '*'
+  }
+})
+
+io.on('connection', (socket) => {
+  console.log('⚡ [Socket.IO] User connected:', socket.id)
+
+  socket.on('disconnect', (reason) => {
+    console.log('❌ [Socket.IO] User disconnected:', socket.id, '| Reason:', reason)
+  })
+
+  socket.on('join-board', (boardId: string) => {
+    socket.join(boardId)
+    console.log(`Socket ${socket.id} đã vào phòng: ${boardId}`)
+  })
+
+  socket.on('leave-board', (boardId: string) => {
+    socket.leave(boardId)
+    console.log(`Socket ${socket.id} đã rời phòng: ${boardId}`)
+  })
+})
 
 app.use(cors({ origin: '*' }))
 app.use(json())
@@ -47,9 +76,10 @@ app.get('/', (req, res) => {
 
 app.use('/auth', authorization, authRoute)
 app.use('/boards', authorization, boardRoute)
+app.use('/repositories', authorization, githubRoute)
 
 app.use(errorHandler)
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`🚀 Server listening on http://localhost:${PORT}`)
 })

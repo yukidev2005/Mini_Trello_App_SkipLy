@@ -1,12 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { createTaskSchema, updateTaskSchema } from '~/res/task/task.schema'
-import {
-  handleCreateTask,
-  handleDeleteTask,
-  handleGetTaskById,
-  handleGetTasks,
-  handleUpdateTask
-} from '~/res/task/task.service'
+import { handleCreateTask, handleDeleteTask, handleGetTaskById, handleGetTasks, handleUpdateTask } from '~/res/task/task.service'
 
 export const getTasks = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -17,20 +11,16 @@ export const getTasks = async (req: Request, res: Response, next: NextFunction) 
     return res.status(200).json({
       message: 'Success',
       data,
-      statusCode: 201,
+      statusCode: 200,
       timestamp: new Date().toISOString(),
       path: req.originalUrl
     })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+  } catch (error: unknown) {
+    return next(error)
   }
 }
 
-export const getTasksbyId = async (req: Request, res: Response, next: NextFunction) => {
+export const getTaskById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { taskId } = req.params
 
@@ -39,16 +29,12 @@ export const getTasksbyId = async (req: Request, res: Response, next: NextFuncti
     return res.status(200).json({
       message: 'Success',
       data,
-      statusCode: 201,
+      statusCode: 200,
       timestamp: new Date().toISOString(),
       path: req.originalUrl
     })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+  } catch (error: unknown) {
+    return next(error)
   }
 }
 
@@ -72,25 +58,21 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
       ...req.body
     })
 
-    return res.status(200).json({
+    return res.status(201).json({
       message: 'Success',
       data,
       statusCode: 201,
       timestamp: new Date().toISOString(),
       path: req.originalUrl
     })
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+  } catch (error: unknown) {
+    return next(error)
   }
 }
 
 export const updateTask = async (req: Request, res: Response, next: NextFunction) => {
   const { boardId, cardId, taskId } = req.params
+  const { userId } = req.body
 
   try {
     const { success, error } = updateTaskSchema.safeParse({
@@ -109,44 +91,31 @@ export const updateTask = async (req: Request, res: Response, next: NextFunction
         boardId,
         ...req.body
       },
-      taskId
+      taskId,
+      userId
     )
 
     return res.status(200).json({
       message: 'Success',
       data,
-      statusCode: 201,
+      statusCode: 200,
       timestamp: new Date().toISOString(),
       path: req.originalUrl
     })
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+  } catch (error: unknown) {
+    return next(error)
   }
 }
 
 export const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
   const { taskId } = req.params
+  const { userId } = req.body
 
   try {
-    await handleDeleteTask(taskId)
+    await handleDeleteTask(taskId, userId)
 
-    return res.status(204).json({
-      message: 'Success',
-      statusCode: 201,
-      timestamp: new Date().toISOString(),
-      path: req.originalUrl
-    })
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    return next({
-      statusCode: error.statusCode,
-      message: error.message
-    })
+    return res.status(204).send()
+  } catch (error: unknown) {
+    return next(error)
   }
 }

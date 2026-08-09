@@ -25,4 +25,3 @@ export const validateOTPSchema = z.object({
 export type SigninType = z.infer<typeof signinSchema>
 export type SignupType = z.infer<typeof signupSchema>
 export type EmailVerificationType = z.infer<typeof emailVerificationSchema>
-export type ValidationOTPType = z.infer<typeof validateOTPSchema>

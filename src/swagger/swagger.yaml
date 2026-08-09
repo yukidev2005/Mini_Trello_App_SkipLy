@@ -1,169 +1,362 @@
 openapi: 3.0.4
 info:
-  title: Skipli API
+  title: Skipli Trello API
   version: 1.0.0
-  description: API for Skipli application
+  description: |
+    REST API cho ứng dụng quản lý dự án dạng Trello clone.
+
+    ## Xác thực
+    Hầu hết các endpoint yêu cầu JWT Bearer Token trong header `Authorization`.
+    Token được lấy sau khi đăng nhập qua `/auth/signin`.
+
+    ## Flow xác thực
+    1. **Đăng ký**: `POST /auth/signup` → nhận OTP qua email
+    2. **Gửi lại OTP**: `POST /auth/send-code` (nếu cần)
+    3. **Đăng nhập**: `POST /auth/signin` với OTP → nhận `accessToken`
+    4. Dùng `accessToken` trong header `Authorization: Bearer <token>` cho các request tiếp theo
+
+  contact:
+    name: Yuki Dev
+    email: yukidev2005@gmail.com
+  license:
+    name: MIT
 
 servers:
   - url: http://localhost:3000
+    description: Local development server
 
 security:
   - bearerAuth: []
 
+tags:
+  - name: Default
+    description: Thông tin API
+  - name: Auth
+    description: Xác thực người dùng (đăng ký, đăng nhập, gửi OTP)
+  - name: Board
+    description: Quản lý bảng (board) - tương đương workspace
+  - name: Card
+    description: Quản lý danh sách (card/column) trong board
+  - name: Task
+    description: Quản lý công việc (task) trong card
+  - name: Invite
+    description: Mời thành viên vào board/card
+  - name: Assign
+    description: Phân công thành viên vào task
+  - name: GitHub
+    description: Tích hợp GitHub - attach PR/Issue vào task
+
 paths:
+  # ─────────────────────────────────────────
+  # DEFAULT
+  # ─────────────────────────────────────────
   /:
     get:
       tags:
         - Default
-      summary: 'API Info'
+      summary: API Health Check
+      description: Kiểm tra trạng thái API server
+      security: []
       responses:
         '200':
-          description: API is running
+          description: API đang hoạt động
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+              example:
+                success: true
+                message: Trello App API is running
+                data:
+                  name: Trello App API
+                  version: 1.0.0
+                  description: API system for Trello App
+                  author: Yuki dev
+                  license: MIT
+                  contact:
+                    email: yukidev2005@gmail.com
+                timestamp: '2024-01-01T00:00:00.000Z'
 
+  # ─────────────────────────────────────────
+  # AUTH
+  # ─────────────────────────────────────────
   /auth/signup:
     post:
       tags:
         - Auth
-      summary: Creates a new user account
+      summary: Đăng ký tài khoản mới
+      description: |
+        Tạo tài khoản người dùng mới. Hệ thống sẽ gửi mã OTP đến email được cung cấp.
+        OTP có hiệu lực trong 5 phút.
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - email
-              properties:
-                email:
-                  type: string
-                  format: email
+              $ref: '#/components/schemas/SignupRequest'
+            example:
+              email: user@example.com
       responses:
         '201':
-          description: Created
-
-  /auth/signin:
-    post:
-      tags:
-        - Auth
-      summary: Login to user account
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - email
-                - verificationCode
-              properties:
-                email:
-                  type: string
-                  format: email
-                verificationCode:
-                  type: string
-      responses:
-        '200':
-          description: Success
+          description: Tạo tài khoản thành công, OTP đã gửi đến email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  email: user@example.com
+                  id: abc123xyz
+                statusCode: 201
+                timestamp: '2024-01-01T00:00:00.000Z'
+                path: /auth/signup
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email đã tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 409
+                message: User already exists with this email
 
   /auth/send-code:
     post:
       tags:
         - Auth
-      summary: Send Email verify code
+      summary: Gửi lại mã OTP
+      description: Gửi lại mã xác thực OTP đến email. Dùng khi OTP cũ đã hết hạn hoặc chưa nhận được.
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - email
-              properties:
-                email:
-                  type: string
-                  format: email
+              $ref: '#/components/schemas/SendCodeRequest'
+            example:
+              email: user@example.com
       responses:
         '200':
-          description: Success
+          description: OTP đã gửi thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  message: Verify code has sent to you email
+                statusCode: 200
+                timestamp: '2024-01-01T00:00:00.000Z'
+                path: /auth/send-code
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Không tìm thấy tài khoản với email này
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /auth/validate-otp:
+  /auth/signin:
     post:
       tags:
         - Auth
-      summary: Validate OTP
+      summary: Đăng nhập
+      description: |
+        Đăng nhập bằng email và mã OTP nhận được qua email.
+        Trả về `accessToken` (JWT) dùng để xác thực các request tiếp theo.
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - email
-                - verificationCode
-              properties:
-                email:
-                  type: string
-                  format: email
-                verificationCode:
-                  type: string
+              $ref: '#/components/schemas/SigninRequest'
+            example:
+              email: user@example.com
+              verificationCode: '123456'
       responses:
         '200':
-          description: Success
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  userId: abc123xyz
+                  email: user@example.com
+                  name: John Doe
+                  accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  githubAccessToken: null
+                  createdAt: '2024-01-01T00:00:00.000Z'
+                  updatedAt: '2024-01-01T00:00:00.000Z'
+                statusCode: 200
+                timestamp: '2024-01-01T00:00:00.000Z'
+                path: /auth/signin
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: OTP sai hoặc đã hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 401
+                message: Verification code has expired
+        '404':
+          description: Không tìm thấy tài khoản
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
+  # ─────────────────────────────────────────
+  # BOARDS
+  # ─────────────────────────────────────────
   /boards:
     get:
       tags:
         - Board
-      summary: Get all boards
+      summary: Lấy danh sách tất cả boards
+      description: Trả về toàn bộ danh sách boards trong hệ thống.
       responses:
         '200':
-          description: Success
+          description: Danh sách boards
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  - id: board123
+                    name: My Project
+                    description: Project description
+                    owner_id: user123
+                    member_ids: []
+                statusCode: 200
+                timestamp: '2024-01-01T00:00:00.000Z'
+                path: /boards
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
     post:
       tags:
         - Board
-      summary: Create a board
+      summary: Tạo board mới
+      description: Tạo một board mới. Socket.IO sẽ phát sự kiện `new-card` đến tất cả client trong room.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - name
-                - description
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
+              $ref: '#/components/schemas/CreateBoardRequest'
+            example:
+              name: My New Board
+              description: A board for managing tasks
+              userId: user123
       responses:
-        '201':
-          description: Created
+        '200':
+          description: Board đã được tạo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  id: board123
+                  name: My New Board
+                  description: A board for managing tasks
+                  owner_id: user123
+                  member_ids: []
+                statusCode: 201
+                timestamp: '2024-01-01T00:00:00.000Z'
+                path: /boards
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /boards/{id}:
     get:
       tags:
         - Board
-      summary: Get board by id
+      summary: Lấy board theo ID
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/BoardId'
       responses:
         '200':
-          description: Success
+          description: Thông tin board
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  id: board123
+                  name: My Project
+                  description: Project description
+                  owner_id: user123
+                  member_ids:
+                    - user456
+                statusCode: 200
+                timestamp: '2024-01-01T00:00:00.000Z'
+                path: /boards/board123
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
     put:
       tags:
         - Board
-      summary: Update board
+      summary: Cập nhật board
+      description: Chỉ chủ sở hữu (owner) mới có thể cập nhật board.
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/BoardId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBoardRequest'
+            example:
+              name: Updated Board Name
+              description: Updated description
+              userId: user123
+      responses:
+        '200':
+          description: Board đã được cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Board
+      summary: Xóa board
+      description: |
+        Chỉ chủ sở hữu mới có thể xóa board.
+        Xóa cascade: tự động xóa toàn bộ cards và tasks liên quan.
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
       requestBody:
         required: true
         content:
@@ -171,106 +364,153 @@ paths:
             schema:
               type: object
               required:
-                - name
-                - description
+                - userId
               properties:
-                name:
+                userId:
                   type: string
-                description:
-                  type: string
-      responses:
-        '200':
-          description: Success
-    delete:
-      tags:
-        - Board
-      summary: Delete board
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+                  description: ID của người thực hiện xóa (phải là owner)
+            example:
+              userId: user123
       responses:
         '204':
-          description: Deleted
+          description: Board đã bị xóa thành công
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
+  /boards/{boardId}/members:
+    get:
+      tags:
+        - Board
+      summary: Lấy danh sách thành viên của board
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+      responses:
+        '200':
+          description: Danh sách thành viên
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─────────────────────────────────────────
+  # CARDS
+  # ─────────────────────────────────────────
   /boards/{boardId}/cards:
     get:
       tags:
         - Card
-      summary: Get all cards in a board
+      summary: Lấy tất cả cards trong board
       parameters:
-        - in: path
-          name: boardId
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/BoardIdParam'
       responses:
         '200':
-          description: Success
+          description: Danh sách cards
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  - id: card123
+                    name: To Do
+                    description: Danh sách công việc cần làm
+                    board_id: board123
+                    onwerId: user123
+                statusCode: 200
+                timestamp: '2024-01-01T00:00:00.000Z'
+                path: /boards/board123/cards
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
     post:
       tags:
         - Card
-      summary: Create a card in a board
+      summary: Tạo card mới trong board
       parameters:
-        - in: path
-          name: boardId
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/BoardIdParam'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - name
-                - description
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
+              $ref: '#/components/schemas/CreateCardRequest'
+            example:
+              name: To Do
+              description: Danh sách việc cần làm
+              onwerId: user123
       responses:
         '201':
-          description: Created
+          description: Card đã được tạo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /boards/{boardId}/cards/{cardId}:
     get:
       tags:
         - Card
-      summary: Get card by id
+      summary: Lấy card theo ID
       parameters:
-        - in: path
-          name: boardId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: cardId
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
       responses:
         '200':
-          description: Success
+          description: Thông tin card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
     put:
       tags:
         - Card
-      summary: Update card
+      summary: Cập nhật card
       parameters:
-        - in: path
-          name: boardId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: cardId
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCardRequest'
+            example:
+              name: In Progress
+              description: Công việc đang thực hiện
+              onwerId: user123
+      responses:
+        '200':
+          description: Card đã được cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - Card
+      summary: Xóa card
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
       requestBody:
         required: true
         content:
@@ -278,103 +518,265 @@ paths:
             schema:
               type: object
               required:
-                - name
-                - description
+                - userId
               properties:
-                name:
+                userId:
                   type: string
-                description:
-                  type: string
-      responses:
-        '200':
-          description: Success
-    delete:
-      tags:
-        - Card
-      summary: Delete card
-      parameters:
-        - in: path
-          name: boardId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: cardId
-          required: true
-          schema:
-            type: string
+            example:
+              userId: user123
       responses:
         '204':
-          description: Deleted
+          description: Card đã bị xóa
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /boards/{boardId}/cards/user/{userId}:
     get:
       tags:
         - Card
-      summary: Get cards by user id
+      summary: Lấy cards theo userId
+      description: Lấy tất cả cards mà người dùng cụ thể là owner.
       parameters:
-        - in: path
-          name: boardId
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/BoardIdParam'
         - in: path
           name: userId
           required: true
           schema:
             type: string
+          description: ID của người dùng
       responses:
         '200':
-          description: Success
+          description: Danh sách cards của user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
+  /boards/{boardId}/cards/{cardId}/members:
+    get:
+      tags:
+        - Card
+      summary: Lấy danh sách thành viên của card
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+      responses:
+        '200':
+          description: Danh sách thành viên trong card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─────────────────────────────────────────
+  # INVITE
+  # ─────────────────────────────────────────
   /boards/{boardId}/invite:
     post:
       tags:
         - Invite
-      summary: Invite member to a board
+      summary: Mời thành viên vào board
+      description: |
+        Gửi lời mời tham gia board đến một thành viên.
+        Có thể gửi kèm email để thông báo.
       parameters:
-        - in: path
-          name: boardId
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/BoardIdParam'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - board_owner_id
-                - member_id
-              properties:
-                board_owner_id:
-                  type: string
-                member_id:
-                  type: string
-                email_member:
-                  type: string
-                  format: email
+              $ref: '#/components/schemas/SendInviteRequest'
+            example:
+              board_owner_id: user123
+              member_id: user456
+              email_member: invited@example.com
       responses:
         '200':
-          description: Success
+          description: Lời mời đã được gửi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /boards/{boardId}/cards/{cardId}/invite/accept:
     post:
       tags:
         - Invite
-      summary: Accept or decline a board invitation
+      summary: Phản hồi lời mời (chấp nhận/từ chối)
+      description: Thành viên được mời chấp nhận hoặc từ chối lời mời tham gia card.
       parameters:
-        - in: path
-          name: boardId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: cardId
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RespondInviteRequest'
+            examples:
+              accept:
+                summary: Chấp nhận lời mời
+                value:
+                  invite_id: invite123
+                  card_id: card123
+                  member_id: user456
+                  status: accepted
+              decline:
+                summary: Từ chối lời mời
+                value:
+                  invite_id: invite123
+                  card_id: card123
+                  member_id: user456
+                  status: declined
+      responses:
+        '200':
+          description: Phản hồi lời mời thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─────────────────────────────────────────
+  # TASKS
+  # ─────────────────────────────────────────
+  /boards/{boardId}/cards/{cardId}/tasks:
+    get:
+      tags:
+        - Task
+      summary: Lấy tất cả tasks trong card
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+      responses:
+        '200':
+          description: Danh sách tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  - id: task123
+                    title: Implement login feature
+                    description: Create login form with OTP validation
+                    status: todo
+                    ownerId: user123
+                    card_id: card123
+                    board_id: board123
+                statusCode: 200
+                timestamp: '2024-01-01T00:00:00.000Z'
+                path: /boards/board123/cards/card123/tasks
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Task
+      summary: Tạo task mới trong card
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+            example:
+              title: Implement login feature
+              description: Create login form with OTP validation
+              status: todo
+              ownerId: user123
+      responses:
+        '201':
+          description: Task đã được tạo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /boards/{boardId}/cards/{cardId}/tasks/{taskId}:
+    get:
+      tags:
+        - Task
+      summary: Lấy task theo ID
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+        - $ref: '#/components/parameters/TaskIdParam'
+      responses:
+        '200':
+          description: Thông tin task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Task
+      summary: Cập nhật task
+      description: Chỉ owner của task mới có thể cập nhật.
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+        - $ref: '#/components/parameters/TaskIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+            example:
+              title: Implement login feature (updated)
+              description: Updated description
+              status: in_progress
+              userId: user123
+      responses:
+        '200':
+          description: Task đã được cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags:
+        - Task
+      summary: Xóa task
+      description: Chỉ owner của task mới có thể xóa.
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+        - $ref: '#/components/parameters/TaskIdParam'
       requestBody:
         required: true
         content:
@@ -382,26 +784,654 @@ paths:
             schema:
               type: object
               required:
-                - invite_id
-                - card_id
-                - member_id
-                - status
+                - userId
               properties:
-                invite_id:
+                userId:
                   type: string
-                card_id:
-                  type: string
-                member_id:
-                  type: string
-                status:
-                  type: string
+                  description: ID của người thực hiện xóa (phải là owner)
+            example:
+              userId: user123
+      responses:
+        '204':
+          description: Task đã bị xóa thành công
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ─────────────────────────────────────────
+  # ASSIGN
+  # ─────────────────────────────────────────
+  /boards/{boardId}/cards/{cardId}/tasks/{taskId}/assign:
+    get:
+      tags:
+        - Assign
+      summary: Lấy danh sách thành viên được phân công trong task
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+        - $ref: '#/components/parameters/TaskIdParam'
       responses:
         '200':
-          description: Success
+          description: Danh sách thành viên được assign
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  - memberId: user456
+                    taskId: task123
+                    userId: user123
+                statusCode: 200
+                timestamp: '2024-01-01T00:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
+    post:
+      tags:
+        - Assign
+      summary: Phân công thành viên vào task
+      description: Chỉ owner của task (`userId`) mới có thể phân công thành viên khác.
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+        - $ref: '#/components/parameters/TaskIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRequest'
+            example:
+              userId: user123
+              memberId: user456
+      responses:
+        '200':
+          description: Phân công thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - Assign
+      summary: Hủy phân công thành viên khỏi task
+      description: Chỉ owner (`ownerId`) mới có thể hủy phân công.
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+        - $ref: '#/components/parameters/TaskIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAssignRequest'
+            example:
+              ownerId: user123
+              memberId: user456
+      responses:
+        '204':
+          description: Hủy phân công thành công
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ─────────────────────────────────────────
+  # GITHUB ATTACH (nested under boards)
+  # ─────────────────────────────────────────
+  /boards/{boardId}/cards/{cardId}/tasks/{taskId}/github-attach:
+    post:
+      tags:
+        - GitHub
+      summary: Đính kèm PR/Issue GitHub vào task
+      description: |
+        Attach một Pull Request hoặc Issue từ GitHub vào task.
+        Mỗi task chỉ được đính kèm một Github item.
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+        - $ref: '#/components/parameters/TaskIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GithubAttachRequest'
+            examples:
+              pullRequest:
+                summary: Đính kèm Pull Request
+                value:
+                  type: pull
+                  number: '42'
+              issue:
+                summary: Đính kèm Issue
+                value:
+                  type: issue
+                  number: '17'
+      responses:
+        '201':
+          description: Đính kèm thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  type: pull
+                  number: '42'
+                  task_id: task123
+                statusCode: 201
+                timestamp: '2024-01-01T00:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Task đã có GitHub item đính kèm
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 409
+                message: attach already exit
+
+    delete:
+      tags:
+        - GitHub
+      summary: Xóa GitHub item đính kèm khỏi task
+      parameters:
+        - $ref: '#/components/parameters/BoardIdParam'
+        - $ref: '#/components/parameters/CardIdParam'
+        - $ref: '#/components/parameters/TaskIdParam'
+      responses:
+        '201':
+          description: Xóa đính kèm thành công
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─────────────────────────────────────────
+  # GITHUB REPOSITORIES
+  # ─────────────────────────────────────────
+  /repositories/{repositoryId}/github-info:
+    get:
+      tags:
+        - GitHub
+      summary: Lấy thông tin repository GitHub
+      description: |
+        Lấy thông tin tổng quan của một GitHub repository bao gồm:
+        branches, commits, pull requests và issues.
+
+        **Format `repositoryId`**: `{owner}_{repoName}` (dùng `_` thay cho `/`)
+        Ví dụ: `octocat_Hello-World` → `github.com/octocat/Hello-World`
+
+        **Yêu cầu**: Header `Authorization` phải chứa GitHub Personal Access Token
+        với format: `Bearer ghp_xxxxxxxxxxxx` hoặc `token ghp_xxxxxxxxxxxx`
+      parameters:
+        - in: path
+          name: repositoryId
+          required: true
+          schema:
+            type: string
+          description: 'ID repository theo format: `{owner}_{repoName}`'
+          example: octocat_Hello-World
+      responses:
+        '201':
+          description: Thông tin repository
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                message: Success
+                data:
+                  repositoryId: Hello-World
+                  branches:
+                    - name: main
+                      lastCommitSha: abc123def456
+                  commits:
+                    - name: abc123def456
+                      message: 'feat: add new feature'
+                  pulls:
+                    - name: null
+                      pullNumber: null
+                  issues:
+                    - title: Bug in login
+                      issueNumber: null
+                statusCode: 201
+                timestamp: '2024-01-01T00:00:00.000Z'
+        '401':
+          description: Thiếu hoặc sai GitHub Token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 401
+                message: github Token is requred
+
+# ─────────────────────────────────────────
+# COMPONENTS
+# ─────────────────────────────────────────
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT token nhận được từ `/auth/signin`
+
+  parameters:
+    BoardId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+      description: ID của board
+      example: board123
+
+    BoardIdParam:
+      in: path
+      name: boardId
+      required: true
+      schema:
+        type: string
+      description: ID của board
+      example: board123
+
+    CardIdParam:
+      in: path
+      name: cardId
+      required: true
+      schema:
+        type: string
+      description: ID của card
+      example: card456
+
+    TaskIdParam:
+      in: path
+      name: taskId
+      required: true
+      schema:
+        type: string
+      description: ID của task
+      example: task789
+
+  responses:
+    BadRequest:
+      description: Dữ liệu đầu vào không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 400
+            message: Validation error
+
+    Unauthorized:
+      description: Thiếu hoặc token không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 401
+            message: Missing Authorization header
+
+    Forbidden:
+      description: Không có quyền thực hiện hành động này
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 403
+            message: You do not own this board
+
+    NotFound:
+      description: Không tìm thấy tài nguyên
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 404
+            message: Resource not found
+
+  schemas:
+    # ── Generic ──
+    ApiResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Success
+        data:
+          description: Dữ liệu trả về (có thể là object hoặc array)
+        statusCode:
+          type: integer
+          example: 200
+        timestamp:
+          type: string
+          format: date-time
+          example: '2024-01-01T00:00:00.000Z'
+        path:
+          type: string
+          example: /boards
+
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+
+    HealthCheckResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            name:
+              type: string
+            version:
+              type: string
+            description:
+              type: string
+            author:
+              type: string
+            license:
+              type: string
+            contact:
+              type: object
+              properties:
+                email:
+                  type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    # ── Auth ──
+    SignupRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email để đăng ký tài khoản
+
+    SendCodeRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email cần gửi OTP
+
+    SigninRequest:
+      type: object
+      required:
+        - email
+        - verificationCode
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email đã đăng ký
+        verificationCode:
+          type: string
+          description: Mã OTP 6 chữ số nhận qua email
+          example: '123456'
+
+    # ── Board ──
+    CreateBoardRequest:
+      type: object
+      required:
+        - name
+        - description
+        - userId
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Tên board
+        description:
+          type: string
+          minLength: 1
+          description: Mô tả board
+        userId:
+          type: string
+          description: ID của người tạo (sẽ là owner)
+
+    UpdateBoardRequest:
+      type: object
+      required:
+        - name
+        - description
+        - userId
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        userId:
+          type: string
+          description: ID của owner (dùng để xác thực quyền)
+
+    Board:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        owner_id:
+          type: string
+        member_ids:
+          type: array
+          items:
+            type: string
+
+    # ── Card ──
+    CreateCardRequest:
+      type: object
+      required:
+        - name
+        - description
+        - onwerId
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Tên card (column)
+        description:
+          type: string
+          minLength: 1
+          description: Mô tả card
+        onwerId:
+          type: string
+          description: ID của chủ card
+
+    UpdateCardRequest:
+      type: object
+      required:
+        - name
+        - description
+        - onwerId
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+        onwerId:
+          type: string
+
+    # ── Invite ──
+    SendInviteRequest:
+      type: object
+      required:
+        - board_owner_id
+        - member_id
+      properties:
+        board_owner_id:
+          type: string
+          description: ID của chủ board (người gửi lời mời)
+        member_id:
+          type: string
+          description: ID của thành viên được mời
+        email_member:
+          type: string
+          format: email
+          description: Email của thành viên (tùy chọn, để gửi thông báo)
+
+    RespondInviteRequest:
+      type: object
+      required:
+        - invite_id
+        - card_id
+        - member_id
+        - status
+      properties:
+        invite_id:
+          type: string
+          description: ID của lời mời
+        card_id:
+          type: string
+          description: ID của card
+        member_id:
+          type: string
+          description: ID của thành viên phản hồi
+        status:
+          type: string
+          enum:
+            - accepted
+            - declined
+          description: Trạng thái phản hồi
+
+    # ── Task ──
+    CreateTaskRequest:
+      type: object
+      required:
+        - title
+        - description
+        - status
+        - ownerId
+      properties:
+        title:
+          type: string
+          description: Tiêu đề task
+        description:
+          type: string
+          description: Mô tả chi tiết task
+        status:
+          type: string
+          description: Trạng thái task
+          enum:
+            - todo
+            - in_progress
+            - done
+          example: todo
+        ownerId:
+          type: string
+          description: ID của người tạo task
+
+    UpdateTaskRequest:
+      type: object
+      required:
+        - title
+        - description
+        - status
+        - userId
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - todo
+            - in_progress
+            - done
+        userId:
+          type: string
+          description: ID của người cập nhật (phải là owner)
+
+    # ── Assign ──
+    AssignRequest:
+      type: object
+      required:
+        - userId
+        - memberId
+      properties:
+        userId:
+          type: string
+          description: ID của người thực hiện phân công (phải là owner task)
+        memberId:
+          type: string
+          description: ID của thành viên được phân công
+
+    DeleteAssignRequest:
+      type: object
+      required:
+        - ownerId
+        - memberId
+      properties:
+        ownerId:
+          type: string
+          description: ID của owner task
+        memberId:
+          type: string
+          description: ID của thành viên cần hủy phân công
+
+    # ── GitHub ──
+    GithubAttachRequest:
+      type: object
+      required:
+        - type
+        - number
+      properties:
+        type:
+          type: string
+          description: Loại GitHub item
+          enum:
+            - pull
+            - issue
+          example: pull
+        number:
+          type: string
+          description: Số thứ tự của PR hoặc Issue trên GitHub
+          example: '42'
