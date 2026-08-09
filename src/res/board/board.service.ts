@@ -1,6 +1,6 @@
 import { db } from '~/index'
 import { CreateBoardType, UpdateBoardType } from './board.schema'
-import { sendNewCardToRoom } from '~/socket/card-socket'
+import { sendNewBoardToRoom, sendUpdateBoardToRoom, sendDeleteBoardToRoom } from '~/socket/board-socket'
 import { createHttpError } from '~/utils/http-error'
 
 export const handleCreateBoard = async ({ description, name, userId }: CreateBoardType) => {
@@ -13,7 +13,7 @@ export const handleCreateBoard = async ({ description, name, userId }: CreateBoa
     error.statusCode = 400
   }
 
-  //  create new boar
+  //  create new board
   const board = await db.collection('boards').add({
     name,
     description,
@@ -21,15 +21,17 @@ export const handleCreateBoard = async ({ description, name, userId }: CreateBoa
     member_ids: [userId]
   })
 
-  sendNewCardToRoom(board.id, (await board.get()).data())
-
-  return {
+  const newBoardData = {
     name,
     description,
     owner_id: userId,
     id: board.id,
     member_ids: [userId]
   }
+
+  sendNewBoardToRoom(newBoardData)
+
+  return newBoardData
 }
 
 export const hanldeGetBoards = async () => {
@@ -95,11 +97,15 @@ export const handleUpdateBoard = async (id: string, { description, name, userId 
     description
   })
 
-  return {
+  const updatedData = {
     name,
     description,
     id: boardDoc.id
   }
+
+  sendUpdateBoardToRoom(id, updatedData)
+
+  return updatedData
 }
 
 export const handleDeleteBoard = async (id: string, userId: string) => {
@@ -116,26 +122,25 @@ export const handleDeleteBoard = async (id: string, userId: string) => {
 
   const cardsList = await db.collection('cards').where('board_id', '==', id).get()
 
-  if (cardsList.empty) {
-    await db.collection('boards').doc(id).delete()
-    return null
-  }
+  if (!cardsList.empty) {
+    for (let i = 0; i < cardsList.docs.length; i++) {
+      const currentCard = cardsList.docs[i]
 
-  for (let i = 0; i < cardsList.docs.length; i++) {
-    const currentCard = cardsList.docs[i]
+      // check task link to this card
+      const taskList = await db.collection('tasks').where('card_id', '==', currentCard.id).get()
 
-    // check task link to this card
-    const taskList = await db.collection('tasks').where('card_id', '==', currentCard.id).get()
-
-    if (!taskList.empty) {
-      for (let j = 0; j < taskList.docs.length; j++) {
-        const currentTask = taskList.docs[j]
-        await db.collection('tasks').doc(currentTask.id).delete()
+      if (!taskList.empty) {
+        for (let j = 0; j < taskList.docs.length; j++) {
+          const currentTask = taskList.docs[j]
+          await db.collection('tasks').doc(currentTask.id).delete()
+        }
       }
+      await db.collection('cards').doc(currentCard.id).delete()
     }
-    await db.collection('cards').doc(currentCard.id).delete()
   }
 
   await db.collection('boards').doc(id).delete()
+  sendDeleteBoardToRoom(id)
+
   return null
 }
