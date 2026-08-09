@@ -4,26 +4,40 @@ import { SendInviteType, RespondInviteType } from './invite.schema'
 import { invitationEmailTemplate } from '~/utils/email-template'
 import { createHttpError } from '~/utils/http-error'
 
-export const handleSendInvite = async (boardId: string, payload: SendInviteType): Promise<{ success: boolean }> => {
-  const { board_owner_id, member_id, email_member } = payload
+export const handleSendInvite = async (
+  boardId: string,
+  payload: SendInviteType
+): Promise<{ success: boolean; member_id: string; email: string }> => {
+  const targetEmail = payload.email || payload.email_member
 
-  if (board_owner_id === member_id) {
-    throw createHttpError('You cannot invite yourself', 400)
+  if (!targetEmail) {
+    throw createHttpError('Vui lòng nhập email người dùng', 400)
   }
+
+  // Find user by email in users collection
+  const userSnapshot = await db.collection('users').where('email', '==', targetEmail).get()
+  if (userSnapshot.empty) {
+    throw createHttpError('Email không tồn tại trong hệ thống', 404)
+  }
+
+  const targetUserDoc = userSnapshot.docs[0]
+  const member_id = targetUserDoc.id
 
   const board = await db.collection('boards').doc(boardId).get()
-  if (!board.data()) {
-    throw createHttpError('Board not found', 404)
+  const boardData = board.data()
+  if (!boardData) {
+    throw createHttpError('Board không tồn tại', 404)
   }
 
-  const owner = await db.collection('users').doc(board_owner_id).get()
-  if (!owner.data()) {
-    throw createHttpError('Board owner not found', 404)
+  const board_owner_id = payload.board_owner_id || boardData.owner_id || boardData.ownerId || ''
+
+  if (board_owner_id && board_owner_id === member_id) {
+    throw createHttpError('Bạn không thể tự mời chính mình', 400)
   }
 
-  const member = await db.collection('users').doc(member_id).get()
-  if (!member.data()) {
-    throw createHttpError('Member not found', 404)
+  const currentMembers: string[] = boardData.member_ids ?? boardData.memberIds ?? []
+  if (currentMembers.includes(member_id)) {
+    throw createHttpError('Người dùng này đã là thành viên của bảng', 400)
   }
 
   const existingInvite = await db
@@ -34,33 +48,35 @@ export const handleSendInvite = async (boardId: string, payload: SendInviteType)
     .get()
 
   if (!existingInvite.empty) {
-    throw createHttpError('Invitation already sent to this member', 409)
+    throw createHttpError('Lời mời đã được gửi tới thành viên này trước đó', 409)
   }
 
   const inviteRef = await db.collection('invitations').add({
     board_id: boardId,
-    board_owner_id,
+    board_owner_id: board_owner_id || null,
     member_id,
-    email_member: email_member ?? null,
+    email_member: targetEmail,
     status: 'pending',
     created_at: new Date(),
     updated_at: new Date()
   })
 
-  const inviteId = inviteRef.id
-
-  if (email_member) {
-    const ownerEmail: string = owner.data()?.email ?? 'Board Owner'
-
-    await transporter.sendMail({
-      from: `"Skipli Team" <${process.env.GMAIL_USER}>`,
-      to: email_member,
-      subject: 'Bạn được mời tham gia bảng làm việc trên Skipli',
-      html: invitationEmailTemplate(boardId, inviteId, ownerEmail)
-    })
+  let ownerEmail = 'Board Owner'
+  if (board_owner_id) {
+    const ownerDoc = await db.collection('users').doc(board_owner_id).get()
+    if (ownerDoc.exists && ownerDoc.data()?.email) {
+      ownerEmail = ownerDoc.data()?.email
+    }
   }
 
-  return { success: true }
+  await transporter.sendMail({
+    from: `"Skipli Team" <${process.env.GMAIL_USER}>`,
+    to: targetEmail,
+    subject: 'Bạn được mời tham gia bảng làm việc trên Skipli',
+    html: invitationEmailTemplate(boardId, inviteRef.id, ownerEmail)
+  })
+
+  return { success: true, member_id, email: targetEmail }
 }
 
 export const handleRespondInvite = async (

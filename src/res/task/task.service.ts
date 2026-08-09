@@ -1,6 +1,7 @@
 import { db } from '~/index'
 import { CreateTaskType, UpdateTaskType } from '~/res/task/task.schema'
 import { createHttpError } from '~/utils/http-error'
+import { sendTaskChangeToRoom } from '~/socket/card-socket'
 
 export const handleGetTasks = async (boardId: string, cardId: string) => {
   const tasks = await db.collection('tasks').where('board_id', '==', boardId).where('card_id', '==', cardId).get()
@@ -22,7 +23,7 @@ export const handleGetTaskById = async (taskId: string) => {
 }
 
 export const handleCreateTask = async (data: CreateTaskType) => {
-  // check  valid
+  // check valid
   const board = await db.collection('boards').doc(data.boardId).get()
 
   if (!board.data()) {
@@ -42,7 +43,6 @@ export const handleCreateTask = async (data: CreateTaskType) => {
   }
 
   // create
-
   const newTask = await db.collection('tasks').add({
     board_id: data.boardId,
     card_id: data.cardId,
@@ -52,6 +52,8 @@ export const handleCreateTask = async (data: CreateTaskType) => {
     status: data.status
   })
 
+  sendTaskChangeToRoom(data.boardId)
+
   return {
     ...data,
     id: newTask.id
@@ -59,7 +61,7 @@ export const handleCreateTask = async (data: CreateTaskType) => {
 }
 
 export const handleUpdateTask = async (data: UpdateTaskType, taskId: string, ownerId: string) => {
-  // check  valid
+  // check valid
   const task = await db.collection('tasks').doc(taskId).get()
   const taskData = task.data()
 
@@ -79,8 +81,11 @@ export const handleUpdateTask = async (data: UpdateTaskType, taskId: string, own
     status: data.status
   })
 
+  sendTaskChangeToRoom(data.boardId)
+
   return {
-    ...data
+    ...data,
+    id: taskId
   }
 }
 
@@ -98,5 +103,10 @@ export const handleDeleteTask = async (taskId: string, ownerId: string) => {
   }
 
   await db.collection('tasks').doc(taskId).delete()
+
+  if (taskData.board_id) {
+    sendTaskChangeToRoom(taskData.board_id)
+  }
+
   return null
 }

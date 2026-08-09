@@ -14,12 +14,11 @@ export const handleCreateBoard = async ({ description, name, userId }: CreateBoa
   }
 
   //  create new boar
-
   const board = await db.collection('boards').add({
     name,
     description,
     owner_id: userId,
-    member_ids: []
+    member_ids: [userId]
   })
 
   sendNewCardToRoom(board.id, (await board.get()).data())
@@ -29,7 +28,7 @@ export const handleCreateBoard = async ({ description, name, userId }: CreateBoa
     description,
     owner_id: userId,
     id: board.id,
-    member_ids: []
+    member_ids: [userId]
   }
 }
 
@@ -47,6 +46,36 @@ export const getBoardById = async (id: string) => {
     ...board.data(),
     id
   }
+}
+
+export const handleGetMembersByBoardId = async (boardId: string) => {
+  const board = await db.collection('boards').doc(boardId).get()
+  const boardData = board.data()
+
+  if (!boardData) {
+    throw createHttpError('Board not found', 404)
+  }
+
+  const memberIds: string[] = boardData.member_ids ?? boardData.memberIds ?? []
+  const ownerId = boardData.owner_id || boardData.ownerId
+  if (ownerId && !memberIds.includes(ownerId)) {
+    memberIds.push(ownerId)
+  }
+
+  if (memberIds.length === 0) {
+    return []
+  }
+
+  const userDocs = await Promise.all(memberIds.map((id) => db.collection('users').doc(id).get()))
+
+  return userDocs
+    .filter((doc) => doc.exists)
+    .map((doc) => {
+      const data = doc.data()!
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { verificationCode, codeExpiresAt, ...safeUser } = data
+      return { id: doc.id, ...safeUser }
+    })
 }
 
 export const handleUpdateBoard = async (id: string, { description, name, userId }: UpdateBoardType) => {
